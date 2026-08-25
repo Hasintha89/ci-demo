@@ -46,3 +46,21 @@ jobs:
         with:
           name: ci-demo
           path: build/
+
+  deploy-staging:
+    needs: test
+    runs-on: ubuntu-latest
+    environment: staging
+
+    steps:
+      - name: Deploy to staging
+        run: echo "Deploying to staging..."
+
+  deploy-production:
+    needs: deploy-staging
+    runs-on: ubuntu-latest
+    environment: production
+
+    steps:
+      - name: Deploy to production
+        run: echo "Deploying to production..."
