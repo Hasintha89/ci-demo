@@ -1,4 +1,4 @@
-name: Python CI
+name: Python CI/CD
 
 on:
   push:
@@ -7,33 +7,59 @@ on:
     branches: [main]
 
 jobs:
+
+  # =========================
+  # 1. CONTINUOUS INTEGRATION
+  # =========================
   test:
     runs-on: ubuntu-latest
 
+    # Normal environment variable.
+    # This is NOT a GitHub Environment.
     env:
       APP_ENV: test
 
     steps:
+
+      # Get source code onto the GitHub runner.
       - name: Checkout code
         uses: actions/checkout@v4
 
+      # Install the required Python version.
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
 
+      # Install CI dependencies.
       - name: Install dependencies
         run: |
           pip install pytest flake8
 
+      # Demonstrate use of an environment variable.
       - name: Show environment
         run: echo "Environment is $APP_ENV"
 
+      # Check Python code quality.
       - name: Lint Python code
         run: flake8 app.py test_app.py
 
+      # Run automated tests.
       - name: Run tests
         run: pytest
+
+
+  # =========================
+  # 2. BUILD
+  # =========================
+  build:
+    needs: test
+    runs-on: ubuntu-latest
+
+    steps:
+
+      - name: Checkout code
+        uses: actions/checkout@v4
 
       - name: Build application
         run: |
@@ -41,26 +67,66 @@ jobs:
           cp app.py build/
           cp test_app.py build/
 
+      # Store the build output.
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: ci-demo
           path: build/
 
+
+  # =========================
+  # 3. DEPLOY TO STAGING
+  # =========================
   deploy-staging:
-    needs: test
+    needs: build
     runs-on: ubuntu-latest
-    environment: staging
+
+    # This is a REAL GitHub Environment.
+    environment:
+      name: staging
 
     steps:
-      - name: Deploy to staging
-        run: echo "Deploying to staging..."
 
+      - name: Download build artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: ci-demo
+          path: build/
+
+      # Deployment is simulated for now.
+      - name: Deploy to staging
+        run: |
+          echo "Deploying application to STAGING..."
+          ls -la build/
+
+
+  # =========================
+  # 4. DEPLOY TO PRODUCTION
+  # =========================
   deploy-production:
     needs: deploy-staging
     runs-on: ubuntu-latest
-    environment: production
+
+    # IMPORTANT:
+    # This connects the job to the GitHub
+    # Environment named "production".
+    #
+    # Configure Required Reviewers under:
+    # Repository → Settings → Environments → production
+    environment:
+      name: production
 
     steps:
+
+      - name: Download build artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: ci-demo
+          path: build/
+
+      # Deployment is simulated for now.
       - name: Deploy to production
-        run: echo "Deploying to production..."
+        run: |
+          echo "Deploying application to PRODUCTION..."
+          ls -la build/
