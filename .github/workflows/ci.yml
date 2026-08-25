@@ -10,7 +10,7 @@ jobs:
   test:
     runs-on: ubuntu-latest
 
-      env:
+    env:
        APP_ENV: test
 
     steps:
