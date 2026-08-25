@@ -19,8 +19,12 @@ jobs:
         with:
           python-version: "3.11"
 
-      - name: Install pytest
-        run: pip install pytest
+      - name: Install dependencies
+        run: |
+          pip install pytest flake8
+
+      - name: Lint code
+        run: flake8 .
 
       - name: Run tests
         run: pytest
