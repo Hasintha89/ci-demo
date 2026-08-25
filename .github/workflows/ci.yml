@@ -1,3 +1,4 @@
+---
 name: Python CI
 
 on:
@@ -23,7 +24,7 @@ jobs:
           python-version: "3.11"
 
       - name: Install dependencies
-        run: |
+        run:
           pip install pytest flake8
 
       - name: Show environment
@@ -35,8 +36,13 @@ jobs:
       - name: Run tests
         run: pytest
 
+      - name: Test secret
+        env:
+        DEMO_SECRET: ${{ secrets.DEMO_SECRET }}
+        run: echo "Secret is available"
+
       - name: Build application
-        run: |
+        run:
           mkdir build
           cp app.py build/
           cp test_app.py build/
@@ -46,3 +52,11 @@ jobs:
         with:
           name: ci-demo
           path: build/
+
+
+   steps:
+      - name: Deploy
+        env:
+          DATABASE_PASSWORD: ${{ secrets.DATABASE_PASSWORD }}
+        run: ./deploy.sh
+ 
