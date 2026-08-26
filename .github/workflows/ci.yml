@@ -68,11 +68,6 @@ jobs:
   # =========================
   # 3. BUILD & PUSH PRODUCTION IMAGE
   # =========================
-  # 🔵 NEW JOB
-  # Replaces the old artifact-based build job.
-  #
-  # The Docker image is now our deployment artifact.
-  #
   docker-build-push:
     needs:
       - test
@@ -85,34 +80,36 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      # 🔵 NEW
-      # Login securely using GitHub repository secrets.
       - name: Log in to Docker Hub
         uses: docker/login-action@v3
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      # 🔵 NEW
-      # Build the production stage only.
+      # 🔵 CHANGED
+      # Create BOTH an immutable SHA tag and latest tag.
       - name: Build production Docker image
         run: |
           docker build \
             --target production \
+            -t ${{ secrets.DOCKERHUB_USERNAME }}/ci-demo:${{ github.sha }} \
             -t ${{ secrets.DOCKERHUB_USERNAME }}/ci-demo:latest \
             .
 
-      # 🔵 NEW
-      # Test the exact production image before pushing it.
+      # 🔵 CHANGED
+      # Test the exact SHA-tagged image.
       - name: Test production Docker image
         run: |
           docker run --rm \
-            ${{ secrets.DOCKERHUB_USERNAME }}/ci-demo:latest
+            ${{ secrets.DOCKERHUB_USERNAME }}/ci-demo:${{ github.sha }}
 
-      # 🔵 NEW
-      # Push the tested production image to Docker Hub.
+      # 🔵 CHANGED
+      # Push BOTH tags.
       - name: Push Docker image
         run: |
+          docker push \
+            ${{ secrets.DOCKERHUB_USERNAME }}/ci-demo:${{ github.sha }}
+
           docker push \
             ${{ secrets.DOCKERHUB_USERNAME }}/ci-demo:latest
 
@@ -129,10 +126,12 @@ jobs:
 
     steps:
 
+      # 🔵 CHANGED
+      # Record the exact image version being deployed.
       - name: Deploy to staging
         run: |
           echo "Deploying Docker image to STAGING..."
-          echo "Image: ${{ secrets.DOCKERHUB_USERNAME }}/ci-demo:latest"
+          echo "Image: ${{ secrets.DOCKERHUB_USERNAME }}/ci-demo:${{ github.sha }}"
 
 
   # =========================
@@ -147,7 +146,9 @@ jobs:
 
     steps:
 
+      # 🔵 CHANGED
+      # Production also identifies the exact immutable image.
       - name: Deploy to production
         run: |
           echo "Deploying Docker image to PRODUCTION..."
-          echo "Image: ${{ secrets.DOCKERHUB_USERNAME }}/ci-demo:latest"
+          echo "Image: ${{ secrets.DOCKERHUB_USERNAME }}/ci-demo:${{ github.sha }}"
