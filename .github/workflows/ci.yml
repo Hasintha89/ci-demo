@@ -11,7 +11,6 @@ jobs:
   # =========================
   # 1. CONTINUOUS INTEGRATION
   # =========================
-
   test:
     runs-on: ubuntu-latest
 
@@ -51,18 +50,19 @@ jobs:
 
 
   # =========================
-  # 1B. DOCKER TEST
+  # 2. DOCKER TEST
   # =========================
-
   docker-test:
     needs: test
     runs-on: ubuntu-latest
 
     steps:
 
+      # Get source code.
       - name: Checkout code
         uses: actions/checkout@v4
 
+      # Build only the test stage.
       - name: Build Docker test image
         run: |
           docker build \
@@ -70,15 +70,15 @@ jobs:
             -t ci-demo:test \
             .
 
+      # Run tests inside the Docker test image.
       - name: Run tests inside Docker
         run: |
           docker run --rm ci-demo:test
 
 
   # =========================
-  # 2. BUILD
+  # 3. BUILD PRODUCTION IMAGE
   # =========================
-
   build:
     needs:
       - test
@@ -88,27 +88,28 @@ jobs:
 
     steps:
 
+      # Get source code.
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Build application
+      # Build the production Docker image.
+      # The Git commit SHA becomes the image tag.
+      - name: Build production Docker image
         run: |
-          mkdir build
-          cp app.py build/
-          cp test_app.py build/
+          docker build \
+            --target production \
+            -t ci-demo:${{ github.sha }} \
+            .
 
-      # Store the build output.
-      - name: Upload artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: ci-demo
-          path: build/
+      # Test the actual production image.
+      - name: Test production Docker image
+        run: |
+          docker run --rm ci-demo:${{ github.sha }}
 
 
   # =========================
-  # 3. DEPLOY TO STAGING
+  # 4. DEPLOY TO STAGING
   # =========================
-
   deploy-staging:
     needs: build
     runs-on: ubuntu-latest
@@ -119,23 +120,19 @@ jobs:
 
     steps:
 
-      - name: Download build artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: ci-demo
-          path: build/
+      - name: Checkout code
+        uses: actions/checkout@v4
 
       # Deployment is simulated for now.
       - name: Deploy to staging
         run: |
-          echo "Deploying application to STAGING..."
-          ls -la build/
+          echo "Deploying Docker application to STAGING..."
+          echo "Image: ci-demo:${{ github.sha }}"
 
 
   # =========================
-  # 4. DEPLOY TO PRODUCTION
+  # 5. DEPLOY TO PRODUCTION
   # =========================
-
   deploy-production:
     needs: deploy-staging
     runs-on: ubuntu-latest
@@ -150,14 +147,8 @@ jobs:
 
     steps:
 
-      - name: Download build artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: ci-demo
-          path: build/
-
       # Deployment is simulated for now.
       - name: Deploy to production
         run: |
-          echo "Deploying application to PRODUCTION..."
-          ls -la build/
+          echo "Deploying Docker application to PRODUCTION..."
+          echo "Image: ci-demo:${{ github.sha }}"
