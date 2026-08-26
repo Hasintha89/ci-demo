@@ -11,7 +11,8 @@ jobs:
   # =========================
   # 1. CONTINUOUS INTEGRATION
   # =========================
-    test:
+
+  test:
     runs-on: ubuntu-latest
 
     # Normal environment variable.
@@ -48,9 +49,14 @@ jobs:
       - name: Run tests
         run: pytest
 
+
+  # =========================
+  # 1B. DOCKER TEST
+  # =========================
+
   docker-test:
-        needs: test
-        runs-on: ubuntu-latest
+    needs: test
+    runs-on: ubuntu-latest
 
     steps:
 
@@ -64,15 +70,20 @@ jobs:
             -t ci-demo:test \
             .
 
-      - name: Run tests inside Docker  
+      - name: Run tests inside Docker
         run: |
           docker run --rm ci-demo:test
+
 
   # =========================
   # 2. BUILD
   # =========================
+
   build:
-    needs: test
+    needs:
+      - test
+      - docker-test
+
     runs-on: ubuntu-latest
 
     steps:
@@ -97,6 +108,7 @@ jobs:
   # =========================
   # 3. DEPLOY TO STAGING
   # =========================
+
   deploy-staging:
     needs: build
     runs-on: ubuntu-latest
@@ -123,11 +135,11 @@ jobs:
   # =========================
   # 4. DEPLOY TO PRODUCTION
   # =========================
+
   deploy-production:
     needs: deploy-staging
     runs-on: ubuntu-latest
 
-    # IMPORTANT:
     # This connects the job to the GitHub
     # Environment named "production".
     #
