@@ -14,37 +14,29 @@ jobs:
   test:
     runs-on: ubuntu-latest
 
-    # Normal environment variable.
-    # This is NOT a GitHub Environment.
     env:
       APP_ENV: test
 
     steps:
 
-      # Get source code onto the GitHub runner.
       - name: Checkout code
         uses: actions/checkout@v4
 
-      # Install the required Python version.
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
 
-      # Install CI dependencies.
       - name: Install dependencies
         run: |
           pip install pytest flake8
 
-      # Demonstrate use of an environment variable.
       - name: Show environment
         run: echo "Environment is $APP_ENV"
 
-      # Check Python code quality.
       - name: Lint Python code
         run: flake8 app.py test_app.py
 
-      # Run automated tests.
       - name: Run tests
         run: pytest
 
@@ -58,11 +50,9 @@ jobs:
 
     steps:
 
-      # Get source code.
       - name: Checkout code
         uses: actions/checkout@v4
 
-      # Build only the test stage.
       - name: Build Docker test image
         run: |
           docker build \
@@ -70,16 +60,20 @@ jobs:
             -t ci-demo:test \
             .
 
-      # Run tests inside the Docker test image.
       - name: Run tests inside Docker
         run: |
           docker run --rm ci-demo:test
 
 
   # =========================
-  # 3. BUILD PRODUCTION IMAGE
+  # 3. BUILD & PUSH PRODUCTION IMAGE
   # =========================
-  build:
+  # 🔵 NEW JOB
+  # Replaces the old artifact-based build job.
+  #
+  # The Docker image is now our deployment artifact.
+  #
+  docker-build-push:
     needs:
       - test
       - docker-test
@@ -88,46 +82,57 @@ jobs:
 
     steps:
 
-      # Get source code.
       - name: Checkout code
         uses: actions/checkout@v4
 
-      # Build the production Docker image.
-      # The Git commit SHA becomes the image tag.
+      # 🔵 NEW
+      # Login securely using GitHub repository secrets.
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      # 🔵 NEW
+      # Build the production stage only.
       - name: Build production Docker image
         run: |
           docker build \
             --target production \
-            -t ci-demo:${{ github.sha }} \
+            -t ${{ secrets.DOCKERHUB_USERNAME }}/ci-demo:latest \
             .
 
-      # Test the actual production image.
+      # 🔵 NEW
+      # Test the exact production image before pushing it.
       - name: Test production Docker image
         run: |
-          docker run --rm ci-demo:${{ github.sha }}
+          docker run --rm \
+            ${{ secrets.DOCKERHUB_USERNAME }}/ci-demo:latest
+
+      # 🔵 NEW
+      # Push the tested production image to Docker Hub.
+      - name: Push Docker image
+        run: |
+          docker push \
+            ${{ secrets.DOCKERHUB_USERNAME }}/ci-demo:latest
 
 
   # =========================
   # 4. DEPLOY TO STAGING
   # =========================
   deploy-staging:
-    needs: build
+    needs: docker-build-push
     runs-on: ubuntu-latest
 
-    # This is a REAL GitHub Environment.
     environment:
       name: staging
 
     steps:
 
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      # Deployment is simulated for now.
       - name: Deploy to staging
         run: |
-          echo "Deploying Docker application to STAGING..."
-          echo "Image: ci-demo:${{ github.sha }}"
+          echo "Deploying Docker image to STAGING..."
+          echo "Image: ${{ secrets.DOCKERHUB_USERNAME }}/ci-demo:latest"
 
 
   # =========================
@@ -137,18 +142,12 @@ jobs:
     needs: deploy-staging
     runs-on: ubuntu-latest
 
-    # This connects the job to the GitHub
-    # Environment named "production".
-    #
-    # Configure Required Reviewers under:
-    # Repository → Settings → Environments → production
     environment:
       name: production
 
     steps:
 
-      # Deployment is simulated for now.
       - name: Deploy to production
         run: |
-          echo "Deploying Docker application to PRODUCTION..."
-          echo "Image: ci-demo:${{ github.sha }}"
+          echo "Deploying Docker image to PRODUCTION..."
+          echo "Image: ${{ secrets.DOCKERHUB_USERNAME }}/ci-demo:latest"
