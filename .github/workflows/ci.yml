@@ -1,4 +1,4 @@
-```yaml
+
 name: Python CI/CD
 
 on:
@@ -179,4 +179,4 @@ jobs:
         run: |
           echo "Deploying application to PRODUCTION..."
           ls -la build/
-```
+
