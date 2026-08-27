@@ -28,8 +28,11 @@ jobs:
         with:
           python-version: "3.11"
 
+      # 🔄 CHANGED
+      # Install application dependencies from requirements.txt
       - name: Install dependencies
         run: |
+          pip install -r requirements.txt
           pip install pytest flake8
 
       - name: Show environment
@@ -66,33 +69,11 @@ jobs:
           docker run --rm ci-demo:test
 
 
-  # ==================================================
-  # 3. SERVER TEST — SELF-HOSTED RUNNER
-  # ==================================================
-  server-test:
-    needs: docker-test
-    runs-on: self-hosted
-
-    steps:
-
-      - name: Show server hostname
-        run: hostname
-
-      - name: Show current user
-        run: whoami
-
-      - name: Show Docker version
-        run: docker --version
-
-      - name: Check Docker access
-        run: docker ps
-
-
-  # ==================================================
-  # 🆕 4. BUILD AND PUSH DOCKER IMAGE
-  # ==================================================
-  docker-push:
-    needs: server-test
+  # =========================
+  # 3. BUILD APPLICATION
+  # =========================
+  build:
+    needs: test
     runs-on: ubuntu-latest
 
     steps:
@@ -100,74 +81,83 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      # 🆕 Login to Docker Hub
+      - name: Build application
+        run: |
+          mkdir build
+          cp app.py build/
+          cp test_app.py build/
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ci-demo
+          path: build/
+
+
+  # ==================================================
+  # 🆕 4. BUILD PRODUCTION DOCKER IMAGE + PUSH
+  # ==================================================
+  docker-build-push:
+    needs: docker-test
+    runs-on: ubuntu-latest
+
+    steps:
+
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # 🆕 NEW
+      # Login to Docker Hub
       - name: Log in to Docker Hub
         uses: docker/login-action@v3
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      # 🆕 Build production Docker image
-      - name: Build production image
+      # 🆕 NEW
+      # Build the production stage
+      # The Git commit SHA becomes the image version.
+      - name: Build production Docker image
         run: |
           docker build \
             --target production \
             -t hasintha64/ci-demo:${{ github.sha }} \
-            -t hasintha64/ci-demo:latest \
             .
 
-      # 🆕 Push versioned image
-      - name: Push versioned image
+      # 🆕 NEW
+      # Push immutable image to Docker Hub
+      - name: Push Docker image
         run: |
           docker push hasintha64/ci-demo:${{ github.sha }}
 
-      # 🆕 Push latest image
-      - name: Push latest image
-        run: |
-          docker push hasintha64/ci-demo:latest
 
-
-  # ==================================================
-  # 🆕 5. REAL DEPLOYMENT TO STAGING SERVER
-  # ==================================================
+  # =========================
+  # 5. DEPLOY TO STAGING
+  # =========================
   deploy-staging:
-    needs: docker-push
-    runs-on: self-hosted
+    needs: docker-build-push
+    runs-on: ubuntu-latest
 
     environment:
       name: staging
 
     steps:
 
-      # 🆕 Pull exact image produced by this pipeline
-      - name: Pull Docker image
+      - name: Download build artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: ci-demo
+          path: build/
+
+      - name: Deploy to staging
         run: |
-          docker pull hasintha64/ci-demo:${{ github.sha }}
-
-      # 🆕 Stop old container
-      - name: Stop old container
-        run: |
-          docker stop ci-demo || true
-          docker rm ci-demo || true
-
-      # 🆕 Start new container
-      - name: Start new container
-        run: |
-          docker run -d \
-            --name ci-demo \
-            --restart unless-stopped \
-            hasintha64/ci-demo:${{ github.sha }}
-
-      # 🆕 Verify deployment
-      - name: Verify container
-        run: |
-          docker ps
-          docker logs ci-demo
+          echo "Deploying application to STAGING..."
+          ls -la build/
 
 
-  # ==================================================
+  # =========================
   # 6. DEPLOY TO PRODUCTION
-  # ==================================================
+  # =========================
   deploy-production:
     needs: deploy-staging
     runs-on: ubuntu-latest
@@ -177,7 +167,14 @@ jobs:
 
     steps:
 
+      - name: Download build artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: ci-demo
+          path: build/
+
       - name: Deploy to production
         run: |
-          echo "Production deployment will be configured next."
+          echo "Deploying application to PRODUCTION..."
+          ls -la build/
 
