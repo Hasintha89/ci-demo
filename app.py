@@ -1,5 +1,17 @@
-def add(a, b):
-    return a + b
+from flask import Flask
+
+app = Flask(__name__)
 
 
-print(add(2, 3))
+@app.route("/")
+def home():
+    return "Hello from ci-demo production!"
+
+
+@app.route("/health")
+def health():
+    return "OK"
+
+
+if __name__ == "__main__":
+    app.run(host="0.0.0.0", port=8000)
