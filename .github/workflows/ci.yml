@@ -1,3 +1,4 @@
+```yaml
 name: Python CI/CD
 
 on:
@@ -65,14 +66,33 @@ jobs:
           docker run --rm ci-demo:test
 
 
-  # =========================
-  # 3. BUILD & PUSH PRODUCTION IMAGE
-  # =========================
-  docker-build-push:
-    needs:
-      - test
-      - docker-test
+  # ==================================================
+  # 🆕 3. SERVER TEST — SELF-HOSTED RUNNER
+  # ==================================================
+  server-test:
+    needs: docker-test
+    runs-on: self-hosted
 
+    steps:
+
+      - name: Show server hostname
+        run: hostname
+
+      - name: Show current user
+        run: whoami
+
+      - name: Show Docker version
+        run: docker --version
+
+      - name: Check Docker access
+        run: docker ps
+
+
+  # =========================
+  # 4. BUILD
+  # =========================
+  build:
+    needs: server-test
     runs-on: ubuntu-latest
 
     steps:
@@ -80,45 +100,24 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Log in to Docker Hub
-        uses: docker/login-action@v3
+      - name: Build application
+        run: |
+          mkdir build
+          cp app.py build/
+          cp test_app.py build/
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
         with:
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
-
-      # 🔵 CHANGED
-      # Create BOTH an immutable SHA tag and latest tag.
-      - name: Build production Docker image
-        run: |
-          docker build \
-            --target production \
-            -t ${{ secrets.DOCKERHUB_USERNAME }}/ci-demo:${{ github.sha }} \
-            -t ${{ secrets.DOCKERHUB_USERNAME }}/ci-demo:latest \
-            .
-
-      # 🔵 CHANGED
-      # Test the exact SHA-tagged image.
-      - name: Test production Docker image
-        run: |
-          docker run --rm \
-            ${{ secrets.DOCKERHUB_USERNAME }}/ci-demo:${{ github.sha }}
-
-      # 🔵 CHANGED
-      # Push BOTH tags.
-      - name: Push Docker image
-        run: |
-          docker push \
-            ${{ secrets.DOCKERHUB_USERNAME }}/ci-demo:${{ github.sha }}
-
-          docker push \
-            ${{ secrets.DOCKERHUB_USERNAME }}/ci-demo:latest
+          name: ci-demo
+          path: build/
 
 
   # =========================
-  # 4. DEPLOY TO STAGING
+  # 5. DEPLOY TO STAGING
   # =========================
   deploy-staging:
-    needs: docker-build-push
+    needs: build
     runs-on: ubuntu-latest
 
     environment:
@@ -126,16 +125,20 @@ jobs:
 
     steps:
 
-      # 🔵 CHANGED
-      # Record the exact image version being deployed.
+      - name: Download build artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: ci-demo
+          path: build/
+
       - name: Deploy to staging
         run: |
-          echo "Deploying Docker image to STAGING..."
-          echo "Image: ${{ secrets.DOCKERHUB_USERNAME }}/ci-demo:${{ github.sha }}"
+          echo "Deploying application to STAGING..."
+          ls -la build/
 
 
   # =========================
-  # 5. DEPLOY TO PRODUCTION
+  # 6. DEPLOY TO PRODUCTION
   # =========================
   deploy-production:
     needs: deploy-staging
@@ -146,9 +149,14 @@ jobs:
 
     steps:
 
-      # 🔵 CHANGED
-      # Production also identifies the exact immutable image.
+      - name: Download build artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: ci-demo
+          path: build/
+
       - name: Deploy to production
         run: |
-          echo "Deploying Docker image to PRODUCTION..."
-          echo "Image: ${{ secrets.DOCKERHUB_USERNAME }}/ci-demo:${{ github.sha }}"
+          echo "Deploying application to PRODUCTION..."
+          ls -la build/
+```
