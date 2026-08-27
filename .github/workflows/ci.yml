@@ -1,3 +1,4 @@
+```yaml
 name: Python CI/CD
 
 on:
@@ -19,9 +20,11 @@ jobs:
 
     steps:
 
+      # Checkout source code
       - name: Checkout code
         uses: actions/checkout@v4
 
+      # Set up Python
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
@@ -29,20 +32,27 @@ jobs:
 
       # 🔄 CHANGED
       # Install application dependencies from requirements.txt
+      # and CI-only tools.
       - name: Install dependencies
         run: |
           pip install -r requirements.txt
           pip install pytest flake8
 
+      # Show environment variable
       - name: Show environment
         run: echo "Environment is $APP_ENV"
 
+      # Run code quality checks
       - name: Lint Python code
         run: flake8 app.py test_app.py
 
+      # Run automated tests
       - name: Run tests
         run: pytest
 
+
+  # =========================
+  # 2. BUILD APPLICATION
   # =========================
   build:
     needs: test
@@ -59,6 +69,7 @@ jobs:
           cp app.py build/
           cp test_app.py build/
 
+      # Store application artifact
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
@@ -67,10 +78,15 @@ jobs:
 
 
   # ==================================================
-  # 🆕 4. BUILD PRODUCTION DOCKER IMAGE + PUSH
+  # 🆕 3. BUILD PRODUCTION DOCKER IMAGE + PUSH
   # ==================================================
   docker-build-push:
-    needs: docker-test
+
+    # 🔄 CHANGED
+    # Previously this depended on docker-test.
+    # There is no docker-test stage anymore.
+    needs: test
+
     runs-on: ubuntu-latest
 
     steps:
@@ -79,7 +95,7 @@ jobs:
         uses: actions/checkout@v4
 
       # 🆕 NEW
-      # Login to Docker Hub
+      # Authenticate with Docker Hub.
       - name: Log in to Docker Hub
         uses: docker/login-action@v3
         with:
@@ -87,8 +103,13 @@ jobs:
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
       # 🆕 NEW
-      # Build the production stage
-      # The Git commit SHA becomes the image version.
+      # Build the production Docker image.
+      #
+      # Your Dockerfile contains:
+      #
+      # FROM python:3.12-slim AS production
+      #
+      # Therefore --target production is valid.
       - name: Build production Docker image
         run: |
           docker build \
@@ -97,19 +118,25 @@ jobs:
             .
 
       # 🆕 NEW
-      # Push immutable image to Docker Hub
+      # Push the immutable Git-SHA image to Docker Hub.
       - name: Push Docker image
         run: |
           docker push hasintha64/ci-demo:${{ github.sha }}
 
 
   # =========================
-  # 5. DEPLOY TO STAGING
+  # 4. DEPLOY TO STAGING
   # =========================
   deploy-staging:
+
+    # 🔄 CHANGED
+    # Staging now waits for the Docker image
+    # to be successfully pushed.
     needs: docker-build-push
+
     runs-on: ubuntu-latest
 
+    # Real GitHub Environment
     environment:
       name: staging
 
@@ -128,12 +155,15 @@ jobs:
 
 
   # =========================
-  # 6. DEPLOY TO PRODUCTION
+  # 5. DEPLOY TO PRODUCTION
   # =========================
   deploy-production:
+
     needs: deploy-staging
+
     runs-on: ubuntu-latest
 
+    # Real GitHub Environment
     environment:
       name: production
 
@@ -149,4 +179,4 @@ jobs:
         run: |
           echo "Deploying application to PRODUCTION..."
           ls -la build/
-
+```
